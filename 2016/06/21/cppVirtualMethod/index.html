@@ -1,0 +1,722 @@
+<!doctype html>
+<html class="theme-next use-motion theme-next-mist">
+<head>
+  
+
+<meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+  <link rel="stylesheet" type="text/css" href="/vendors/fancybox/source/jquery.fancybox.css?v=2.1.5"/>
+
+
+
+  
+    <link href='//fonts.googleapis.com/css?family=Lato:300,400,700,400italic&subset=latin,latin-ext' rel='stylesheet' type='text/css'>
+  
+
+
+<link rel="stylesheet" type="text/css" href="/vendors/font-awesome/css/font-awesome.min.css?v=4.4.0" />
+
+<link rel="stylesheet" type="text/css" href="/css/main.css?v=0.4.5.2"/>
+
+
+
+
+  <meta name="keywords" content="c++," />
+
+
+
+
+
+  <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico?v=0.4.5.2" />
+
+
+<meta name="description" content="前言C++通过虚函数来实现多态，从而在运行时动态决定要调用的函数。那么虚函数的调用过程具体是怎样的呢？本文将基于Arm汇编，剖析C++虚函数的调用过程。本文涉及到的代码采用ndk-r10d进行编译。由于水平有限，理解不到位的地方，还请各位指正。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="从Arm汇编看Android C++虚函数实现原理">
+<meta property="og:url" content="http://yoursite.com/2016/06/21/cppVirtualMethod/index.html">
+<meta property="og:site_name" content="ManyFace">
+<meta property="og:description" content="前言C++通过虚函数来实现多态，从而在运行时动态决定要调用的函数。那么虚函数的调用过程具体是怎样的呢？本文将基于Arm汇编，剖析C++虚函数的调用过程。本文涉及到的代码采用ndk-r10d进行编译。由于水平有限，理解不到位的地方，还请各位指正。">
+<meta property="og:image" content="http://yoursite.com/img/cppvirtualmethod/main1.png">
+<meta property="og:image" content="http://yoursite.com/img/cppvirtualmethod/sub_5E4.png">
+<meta property="og:image" content="http://yoursite.com/img/cppvirtualmethod/vtable1.png">
+<meta property="og:image" content="http://yoursite.com/img/cppvirtualmethod/object1.png">
+<meta property="og:image" content="http://yoursite.com/img/cppvirtualmethod/sub_840.png">
+<meta property="og:image" content="http://yoursite.com/img/cppvirtualmethod/sub_760.png">
+<meta property="og:image" content="http://yoursite.com/img/cppvirtualmethod/vtable3.png">
+<meta property="og:image" content="http://yoursite.com/img/cppvirtualmethod/object2.png">
+<meta property="og:image" content="http://yoursite.com/img/cppvirtualmethod/sub_7D4.png">
+<meta property="og:image" content="http://yoursite.com/img/cppvirtualmethod/sub_758.png">
+<meta property="og:image" content="http://yoursite.com/img/cppvirtualmethod/vtable4.png">
+<meta property="og:image" content="http://yoursite.com/img/cppvirtualmethod/object3.png">
+<meta property="og:image" content="http://yoursite.com/img/cppvirtualmethod/class1.png">
+<meta property="og:image" content="http://yoursite.com/img/cppvirtualmethod/sub_B98.png">
+<meta property="og:image" content="http://yoursite.com/img/cppvirtualmethod/sub_A1C.png">
+<meta property="og:image" content="http://yoursite.com/img/cppvirtualmethod/vtable5.png">
+<meta property="og:image" content="http://yoursite.com/img/cppvirtualmethod/object4.png">
+<meta property="og:image" content="http://yoursite.com/img/cppvirtualmethod/class2.png">
+<meta property="og:image" content="http://yoursite.com/img/cppvirtualmethod/sub_540.png">
+<meta property="og:image" content="http://yoursite.com/img/cppvirtualmethod/sub_758_6.png">
+<meta property="og:image" content="http://yoursite.com/img/cppvirtualmethod/vtable6.png">
+<meta property="og:image" content="http://yoursite.com/img/cppvirtualmethod/object5.png">
+<meta property="og:updated_time" content="2016-06-21T16:44:59.109Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="从Arm汇编看Android C++虚函数实现原理">
+<meta name="twitter:description" content="前言C++通过虚函数来实现多态，从而在运行时动态决定要调用的函数。那么虚函数的调用过程具体是怎样的呢？本文将基于Arm汇编，剖析C++虚函数的调用过程。本文涉及到的代码采用ndk-r10d进行编译。由于水平有限，理解不到位的地方，还请各位指正。">
+<meta name="twitter:image" content="http://yoursite.com/img/cppvirtualmethod/main1.png">
+
+
+<script type="text/javascript" id="hexo.configuration">
+  var CONFIG = {
+    scheme: 'Mist',
+    sidebar: '[object Object]'
+  };
+</script>
+
+
+
+  <title> 从Arm汇编看Android C++虚函数实现原理 | ManyFace </title>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="en">
+
+  <!--[if lte IE 8]>
+  <div style=' clear: both; height: 59px; padding:0 0 0 15px; position: relative;margin:0 auto;'>
+    <a href="http://windows.microsoft.com/en-US/internet-explorer/products/ie/home?ocid=ie6_countdown_bannercode">
+      <img src="http://7u2nvr.com1.z0.glb.clouddn.com/picouterie.jpg" border="0" height="42" width="820"
+           alt="You are using an outdated browser. For a faster, safer browsing experience, upgrade for free today or use other browser ,like chrome firefox safari."
+           style='margin-left:auto;margin-right:auto;display: block;'/>
+    </a>
+  </div>
+<![endif]-->
+  
+
+
+
+
+
+
+  <div class="container one-column page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-meta ">
+  
+
+  <div class="custom-logo-site-title">
+    <a href="/"  class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <span class="site-title">ManyFace</span>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+  <p class="site-subtitle">ManyFace</p>
+</div>
+
+<div class="site-nav-toggle">
+  <button>
+    <span class="btn-bar"></span>
+    <span class="btn-bar"></span>
+    <span class="btn-bar"></span>
+  </button>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu ">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-home"></i> <br />
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories" rel="section">
+            
+              <i class="menu-item-icon fa fa-th"></i> <br />
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags" rel="section">
+            
+              <i class="menu-item-icon fa fa-tags"></i> <br />
+            
+            Tags
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives" rel="section">
+            
+              <i class="menu-item-icon fa fa-archive"></i> <br />
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+      
+    </ul>
+  
+
+  
+</nav>
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div id="content" class="content"> 
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+  
+
+  <article class="post post-type-normal " itemscope itemtype="http://schema.org/Article">
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+            
+            
+              
+                从Arm汇编看Android C++虚函数实现原理
+              
+            
+          </h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            Posted on
+            <time itemprop="dateCreated" datetime="2016-06-21T22:39:56+08:00" content="2016-06-21">
+              2016-06-21
+            </time>
+          </span>
+
+          
+            <span class="post-category" >
+              &nbsp; | &nbsp; In
+              
+                <span itemprop="about" itemscope itemtype="https://schema.org/Thing">
+                  <a href="/categories/Android/" itemprop="url" rel="index">
+                    <span itemprop="name">Android</span>
+                  </a>
+                </span>
+
+                
+                
+
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+
+        </div>
+      </header>
+    
+
+
+    <div class="post-body">
+
+      
+      
+
+      
+        <span itemprop="articleBody"><h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>C++通过虚函数来实现多态，从而在运行时动态决定要调用的函数。那么虚函数的调用过程具体是怎样的呢？本文将基于Arm汇编，剖析C++虚函数的调用过程。本文涉及到的代码采用ndk-r10d进行编译。由于水平有限，理解不到位的地方，还请各位指正。<a id="more"></a></p>
+<h1 id="初窥vtable"><a href="#初窥vtable" class="headerlink" title="初窥vtable"></a>初窥vtable</h1><p>其实虚函数的调用是通过vtable来实现的。编译时，编译器会为每一个申明有虚函数的类生成一个vtable，也就是说vtable和类一一对应。vtable中记录了所有虚函数的地址。在对象初始化时，对象会保存相应vtable的地址，虚函数就可以根据其在vtable中的偏移来进行调用。下面来看一个实际的例子：<br><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> BaseA</span><br><span class="line">&#123;</span><br><span class="line"><span class="keyword">private</span>:</span><br><span class="line">	<span class="keyword">int</span> baseA_field;</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">	BaseA(<span class="keyword">int</span> baseA_field);</span><br><span class="line">	~BaseA();</span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> <span class="keyword">void</span> <span class="title">baseA_virtual_1</span><span class="params">()</span></span><br><span class="line">	</span>&#123;</span><br><span class="line">		<span class="built_in">printf</span>(“\t[-] BaseA::baseA_virtual_1()\n”);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> <span class="keyword">void</span> <span class="title">baseA_virtual_2</span><span class="params">()</span></span><br><span class="line">	</span>&#123;</span><br><span class="line">		<span class="built_in">printf</span>(“\t[-] BaseA::baseA_virtual_2()\n”);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> <span class="keyword">void</span> <span class="title">baseA_virtual_3</span><span class="params">()</span></span><br><span class="line">	</span>&#123;</span><br><span class="line">		<span class="built_in">printf</span>(“\t[-] BaseA::baseA_virtual_3()\n”);</span><br><span class="line">	&#125;</span><br><span class="line">&#125;;</span><br><span class="line">BaseA::BaseA(<span class="keyword">int</span> baseA_field)</span><br><span class="line">&#123;</span><br><span class="line">	<span class="built_in">printf</span>(“[+] BaseA constructor called\n”);</span><br><span class="line">	<span class="keyword">this</span>-&gt;baseA_field = baseA_field;</span><br><span class="line">&#125;</span><br><span class="line">BaseA::~BaseA()</span><br><span class="line">&#123;</span><br><span class="line">	<span class="built_in">printf</span>(“[+] BaseA destructor called\n\n”);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">char</span> *argv[])</span></span><br><span class="line"></span>&#123;</span><br><span class="line">	BaseA *baseA = <span class="keyword">new</span> BaseA(<span class="number">1</span>);</span><br><span class="line">	baseA-&gt;baseA_virtual_2();</span><br><span class="line">	<span class="keyword">delete</span> baseA;</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>上述代码中，类BaseA有一个字段baseA_field和3个虚函数baseA_virtual_1()、baseA_virtual_2()、baseA_virtual_3()。在main()中初始化了一个BaseA的对象，并调用了其虚函数baseA_virtual_2()。</p>
+<p>用IDA分析mian()，F5查看其伪代码，如下图所示：<br><img src="/img/cppvirtualmethod/main1.png" alt=""><br>第5行申请了8byte的空间，因为BaseA有一个整型字段，再加上vtable的地址所占的空间，共8byte。<br>第6行调用sub_5E4()，即BaseA的构造函数，对对象进行初始化。注意调用类的实例方法时，第一个参数始终是对象的地址。BaseA的构造函数伪代码如下：<br><img src="/img/cppvirtualmethod/sub_5E4.png" alt=""><br>由上可以知道，vtable的地址会首先赋给baseA对象的前4个字节，然后才执行构造函数的代码。其中vtable的结构如下：<br><img src="/img/cppvirtualmethod/vtable1.png" alt=""></p>
+<p>执行完构造函数后，BaseA对象的内存如下所示：<br><img src="/img/cppvirtualmethod/object1.png" alt=""></p>
+<p>接着看main()伪代码的第7行，*(*v0 + 4)就是虚函数baseA_virtual_2的首地址，因而(*(*v0 + 4))(v0);实际就是调用baseA_virtual_2()。</p>
+<h1 id="无重写虚函数、单继承"><a href="#无重写虚函数、单继承" class="headerlink" title="无重写虚函数、单继承"></a>无重写虚函数、单继承</h1><p>有一个类SubClass继承BaseA，SubClass有一个字段subClass_field和三个虚函数subClass_virtual_1、subClass_virtual_2、subClass_virtual_3，SubClass中没有重写BaseA中的虚函数（ps：不重写虚函数没有多大意义，这里仅仅为了理解虚函数的实现机制），此时代码如下：<br><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> SubClass: <span class="keyword">public</span> BaseA</span><br><span class="line">&#123;</span><br><span class="line"><span class="keyword">private</span>:</span><br><span class="line">	<span class="keyword">int</span> subClass_field;</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">	SubClass(<span class="keyword">int</span> subClass_field, <span class="keyword">int</span> baseA_field);</span><br><span class="line">	~SubClass();</span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> <span class="keyword">void</span> <span class="title">subClass_virtula_1</span><span class="params">()</span></span><br><span class="line">	</span>&#123;</span><br><span class="line">		<span class="built_in">printf</span>(“\t[-] SubClass::subClass_virtula_1()\n”);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> <span class="keyword">void</span> <span class="title">subClass_virtula_2</span><span class="params">()</span></span><br><span class="line">	</span>&#123;</span><br><span class="line">		<span class="built_in">printf</span>(“\t[-] SubClass::subClass_virtula_2()\n”);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> <span class="keyword">void</span> <span class="title">subClass_virtula_3</span><span class="params">()</span></span><br><span class="line">	</span>&#123;</span><br><span class="line">		<span class="built_in">printf</span>(“\t[-] SubClass::subClass_virtula_3()\n”);</span><br><span class="line">	&#125;</span><br><span class="line">&#125;;</span><br><span class="line">SubClass::SubClass(<span class="keyword">int</span> subClass_field, <span class="keyword">int</span> baseA_field) :</span><br><span class="line">		BaseA(baseA_field)</span><br><span class="line">&#123;</span><br><span class="line">	<span class="built_in">printf</span>(“[+] SubClass constructor called\n”);</span><br><span class="line">	<span class="keyword">this</span>-&gt;subClass_field = subClass_field;</span><br><span class="line">&#125;</span><br><span class="line">SubClass::~SubClass()</span><br><span class="line">&#123;</span><br><span class="line">	<span class="built_in">printf</span>(“[+] SubClass destructor called\n\n”);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">char</span> *argv[])</span></span><br><span class="line"></span>&#123;</span><br><span class="line">	SubClass *subClass = <span class="keyword">new</span> SubClass(<span class="number">2</span>, <span class="number">1</span>);</span><br><span class="line">	subClass-&gt;subClass_virtula_3();</span><br><span class="line">	<span class="keyword">delete</span> subClass;</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>用IDA分析main()，F5查看其伪代码，如下图所示：<br><img src="/img/cppvirtualmethod/sub_840.png" alt=""></p>
+<p>第5行为SubClass对象申请了0xCbyte的内存空间，即vtable地址、baseA_field和subClass_field，各4byte。<br>第6行调用SubClass的构造函数，对SubClass对象进行初始化，sub_760()的伪代码如下图所示：<br><img src="/img/cppvirtualmethod/sub_760.png" alt=""></p>
+<p>在SubClass的构造函数中，首先会执行父类BaseA的构造函数，然后将vtable的地址赋给SubClass对象的前4个字节，这样就可以覆盖掉执行BaseA构造函数时赋给SubClass对象BaseA类vtable的地址。其中SubClass类vtable的结构如下图所示：<br><img src="/img/cppvirtualmethod/vtable3.png" alt=""></p>
+<p>执行完构造函数后，SubClass对象的内存如下所示：<br><img src="/img/cppvirtualmethod/object2.png" alt=""></p>
+<p>从上可见，SubClass的vtable前面存的是父类BaseA虚函数的地址，后面存的是SubClass中申明的虚函数的地址。<br>回头看main()的伪代码，第7行，*(*v0+20)得到vtable第五项的值，即subClass_virtual_3，因而(*(*v0+20))(v0)就是在调用subClass_virtual_3()。</p>
+<h1 id="有重写虚函数、单继承"><a href="#有重写虚函数、单继承" class="headerlink" title="有重写虚函数、单继承"></a>有重写虚函数、单继承</h1><p>现在将SubClass的subClass_ virtual_2()去掉，重写baseA_virtual_2()，代码如下：<br><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> SubClass: <span class="keyword">public</span> BaseA</span><br><span class="line">&#123;</span><br><span class="line">… …</span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> <span class="keyword">void</span> <span class="title">baseA_virtual_2</span><span class="params">()</span></span><br><span class="line">	</span>&#123;</span><br><span class="line">		<span class="built_in">printf</span>(“\t[-] SubClass::baseA_virtual_2()\n”);</span><br><span class="line">	&#125;</span><br><span class="line">… …</span><br><span class="line">&#125;</span><br><span class="line">… …</span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">char</span> *argv[])</span></span><br><span class="line"></span>&#123;</span><br><span class="line">	BaseA *subClass = <span class="keyword">new</span> SubClass(<span class="number">2</span>, <span class="number">1</span>);</span><br><span class="line">	subClass-&gt;baseA_virtual_2();</span><br><span class="line">	<span class="keyword">delete</span> subClass;</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>用IDA分析main()，F5查看其伪代码，如下图所示：<br><img src="/img/cppvirtualmethod/sub_7D4.png" alt=""></p>
+<p>第6行调用SubClass的构造函数进行对象初始化，sub_758()的伪代码如下图所示:<br><img src="/img/cppvirtualmethod/sub_758.png" alt=""></p>
+<p>第9行将vtable的值赋给SubClass对象的前4个字节，vtable的结构如下图所示：<br><img src="/img/cppvirtualmethod/vtable4.png" alt=""></p>
+<p>执行完SubClass的构造函数后，SubClass对象的内存如下所示：<br><img src="/img/cppvirtualmethod/object3.png" alt=""></p>
+<p>从上可以知道，无重写时vtable[1] = BaseA::baseA_virtual_2；重写后vtable[1] = SubClass::baseA_virtual_2。因而，在vtable中，子类重写的虚函数会覆盖相应的父类中的虚函数地址。</p>
+<p>回到main()伪代码，第7行中，*(*v0 + 4)获取vtable中第一项的值，由于v0是SubClass对象的指针，因而*(*v0 + 4)就是SubClass::baseA_virtual_2，即(*(*v0 + 4))(v0)调用的是子类SubClass中的baseA_virtual_2()。分析到这里，相信大家对多态的实现机制应该有了一定的认识。</p>
+<h1 id="无重写虚函数、多继承"><a href="#无重写虚函数、多继承" class="headerlink" title="无重写虚函数、多继承"></a>无重写虚函数、多继承</h1><p>C++支持多继承，下面分析多继承情况下虚函数的调用机制。首先分析多继承时，子类没有继承父类虚函数的情况。考虑有如下继承关系的类：<br><img src="/img/cppvirtualmethod/class1.png" alt=""></p>
+<p>其中main()的代码如下：<br><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">char</span> *argv[])</span></span><br><span class="line"></span>&#123;</span><br><span class="line">	SubClass *subClass = <span class="keyword">new</span> SubClass(<span class="number">4</span>, <span class="number">3</span>, <span class="number">2</span>, <span class="number">1</span>);</span><br><span class="line">	subClass-&gt;BaseA::virtual_1();</span><br><span class="line">	subClass-&gt;baseB_virtual_3();</span><br><span class="line">	subClass-&gt;subClass_virtual_1();</span><br><span class="line">	<span class="keyword">delete</span> subClass;</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>用IDA分析main()，F5查看其伪代码，如下图所示：<br><img src="/img/cppvirtualmethod/sub_B98.png" alt=""></p>
+<p>第5行为SubClass对象申请了0x1C byte的空间，其中4个字段占0x10 byte，那么多出的0xC byte存的是什么呢？(其实是3个vtable的指针)<br>第6行调用SubClass的构造函数对SubClass对象进行初始化，sub_A1C()的伪代码如下图所示：<br><img src="/img/cppvirtualmethod/sub_A1C.png" alt=""></p>
+<p>从上可知，由于SubClass类有三个父类，因而SubClass对象中有3个字段分别存着3个指向虚函数列表的地址，subClass类对应的vtable如下图所示：<br><img src="/img/cppvirtualmethod/vtable5.png" alt=""></p>
+<p>执行完SubClass类的构造函数后，SubClass对象的内存结构如下图所示：<br><img src="/img/cppvirtualmethod/object4.png" alt=""></p>
+<p>从上可知，SubClass对象的内存结构是由 n * (vtable指针 + 父类字段) + 子类字段(n是父类的数目)构成的，父类是按照申明的顺序排列，SubClass中的虚函数地址存储在第一个父类vtable的后面。</p>
+<p>回到main()的伪代码：</p>
+<ul>
+<li>第7行调用sub_5F8()，即调用subClass -&gt; BaseA:: virtual_1()，虽然是调用虚函数，由于采用了作用域，编译器在编译阶段就明确知道要调用的函数，因而这里并没有通过vtable来进行调用。</li>
+<li>第8行中，v0[2]是SubClass对象中BaseB类的vtable指针，*(v0[2]+8)得到虚函数BaseB::baseB_virtual_3的地址，因而(*(v0[2] + 8))(v0 + 2);对应源码中的subClass-&gt;baseB_virtual_3();。注意这里第0个参数是v0+2，而不是v0，说明调用父类的虚函数时，第0个参数是SubClass对象中该父类所占内存空间的基址(其实调用父类其他函数也是如此)。</li>
+<li>通过对第8行的分析，第9行(*(*v0 + 12))(v0);就很好理解了，即调用subClass-&gt;subClass_virtual_1();</li>
+</ul>
+<h1 id="有重写虚函数、多继承"><a href="#有重写虚函数、多继承" class="headerlink" title="有重写虚函数、多继承"></a>有重写虚函数、多继承</h1><p>接下来分析多继承时，有重写虚函数的情况。考虑有如下继承关系的类：<br><img src="/img/cppvirtualmethod/class2.png" alt=""></p>
+<p>在main()中将SubClass对象指针转为不同的父类指针进行虚函数调用，main()的代码如下：<br><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">char</span> *argv[])</span></span><br><span class="line"></span>&#123;</span><br><span class="line">	SubClass *subClass = <span class="keyword">new</span> SubClass(<span class="number">4</span>,<span class="number">3</span>,<span class="number">2</span>,<span class="number">1</span>);</span><br><span class="line">	((BaseA *)subClass)-&gt;virtual_1();</span><br><span class="line">	((BaseB *)subClass)-&gt;virtual_2();</span><br><span class="line">	((BaseC *)subClass)-&gt;virtual_1();</span><br><span class="line">	((BaseC *)subClass)-&gt;baseC_virtual_2();</span><br><span class="line">	<span class="keyword">delete</span> subClass;</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>用IDA分析main()，F5查看其伪代码，如下图所示：<br><img src="/img/cppvirtualmethod/sub_540.png" alt=""></p>
+<p>第6行调用SubClass的构造函数对SubClass对象进行初始化，其构造函数sub_758()的伪代码如下图所示：<br><img src="/img/cppvirtualmethod/sub_758_6.png" alt=""></p>
+<p>从上可知，编译器对SubClass类的构造函数进行了优化，将对父类构造函数的调用优化成了inline的形式。第16-18行是对vtable指针进行初始化，vtable的结构如下图所示：<br><img src="/img/cppvirtualmethod/vtable6.png" alt=""></p>
+<p>执行完SubClass类的构造函数后，SubClass对象的内存结构如下图所示：<br><img src="/img/cppvirtualmethod/object5.png" alt=""></p>
+<p>下面对SubClass对象内存布局进行详细分析(可以与多继承无重写虚函数时的内存结构进行对比)：</p>
+<ul>
+<li>3个父类都定义了虚函数virtual_1，并且SubClass重写了virtual_1，因而3个父类对应vtable中virtual_1的值都改为了SubClass::virtual_1。这样，当SubClass对象指针转为任意父类的指针调用virtual_1时，调用的都是SubClass::virtual_1；</li>
+<li>SubClass重写了BaseA和BaseB中的虚函数virtual_2，因而BaseA和BaseB对应vtable中virtual_2的值都改为了SubClass::virtual_2。</li>
+<li>SubClass还重写了BaseC中的虚函数baseC_virtual_2，因而BaseC对应vtable中baseC_virtual_2的值改为了SubClass::baseC_virtual_2。这样当SubClass对象指针转为BaseC类型的指针调用baseC_virtual_2时，调用的就是SubClass::baseC_vritual_2。注意，由于重写的虚函数baseC_virtual_2不是第一个父类BaseA的虚函数，所以在SubClass类的虚函数列表(位于BaseA虚函数列表的后面)中，还需要按照申明顺序添加SubClass::baseC_virtual_2，这样，SubClass对象的指针就可以调用SubClass::baseC_virtual_2了。</li>
+</ul>
+<p>接着分析main()的伪代码：</p>
+<ul>
+<li>第7行，**v0就是SubClass::virtual_1；(**v0)(v0);对应源码中的((BaseA *)subClass)-&gt;virtual_1();。</li>
+<li>第8行，*(*(v0 + 8) + 4)得到BaseB对应vtable中的SubClass::virtual_2 ，(*(*(v0 + 8) + 4))(v0 + 8);就是((BaseB *)subClass)-&gt;virtual_2();。</li>
+<li>第9行，**(v0 + 16)得到BaseC对应vtable中的SubClass::virtual_1，(**(v0 + 16))(v0 + 16);就是((BaseC *)subClass)-&gt;virtual_1();。</li>
+<li>第10行，*(*(v0 + 16) + 4) 得到BaseC对应vtable中的SubClass::baseC_virtual_2，(*(*(v0 + 16) + 4))(v0 + 16);就是((BaseC *)subClass)-&gt;baseC_virtual_2();</li>
+</ul>
+<p>至此，分析完了C++虚函数实现的基本原理。对于多重继承的情况，和前面的类似。比如，还有一个类SubSubClass继承SubClass，并重写了虚函数virtual_1，那么将SubClass的vtable中所有的SubClass::virtual_1替换为SubSubClass::virtual_1，得到的结果就是SubSubClass的vtable。</p>
+<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><p>本文从Arm汇编的角度分析了Android中C++虚函数的实现机制。编译时，编译器会为每一个申明有虚函数的类生成一个vtable，当对象初始化时，会将vtable的地址赋给对象，这样虚函数就可以根据其在vtable中的偏移来进行调用。其中，一个对象所占的内存空间不仅与类的字段有关系，还与类的继承关系有关，对于单继承，一个对象会有一个vtable的指针；如果继承关系中存在多继承，那么该对象会为每一个多继承的父类保存一个vtable的指针。</p>
+<h1 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h1><ul>
+<li><a href="http://blog.csdn.net/haoel/article/details/1948051/" target="_blank" rel="external">http://blog.csdn.net/haoel/article/details/1948051/</a></li>
+</ul>
+</span>
+      
+    </div>
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/c/" rel="tag">#c++</a>
+          
+        </div>
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2016/05/19/AndroidHeapUnlinkExploitPractice/" rel="next" title="Android中堆unlink利用学习">
+                <i class="fa fa-chevron-left"></i> Android中堆unlink利用学习
+              </a>
+            
+          </div>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+ </div>
+
+        
+
+        
+          <div class="comments" id="comments">
+            
+          </div>
+        
+      </div>
+
+      
+        
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap" >
+            Table Of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview sidebar-panel ">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+          <img class="site-author-image" src="/images/avatar.png" alt="ManyFace" itemprop="image"/>
+          <p class="site-author-name" itemprop="name">ManyFace</p>
+        </div>
+        <p class="site-description motion-element" itemprop="description"></p>
+        <nav class="site-state motion-element">
+          <div class="site-state-item site-state-posts">
+            <a href="/archives">
+              <span class="site-state-item-count">2</span>
+              <span class="site-state-item-name">posts</span>
+            </a>
+          </div>
+
+          <div class="site-state-item site-state-categories">
+            <a href="/categories">
+              <span class="site-state-item-count">1</span>
+              <span class="site-state-item-name">categories</span>
+              </a>
+          </div>
+
+          <div class="site-state-item site-state-tags">
+            <a href="/tags">
+              <span class="site-state-item-count">4</span>
+              <span class="site-state-item-name">tags</span>
+              </a>
+          </div>
+
+        </nav>
+
+        
+
+        <div class="links-of-author motion-element">
+          
+            
+              <span class="links-of-author-item">
+                <a href="https://github.com/ManyFace" target="_blank">
+                  <i class="fa fa-github"></i> github
+                </a>
+              </span>
+            
+          
+        </div>
+
+        
+        
+
+        <div class="links-of-author motion-element">
+          
+        </div>
+
+      </section>
+
+      
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc-indicator-top post-toc-indicator"></div>
+          <div class="post-toc">
+            
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#初窥vtable"><span class="nav-number">2.</span> <span class="nav-text">初窥vtable</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#无重写虚函数、单继承"><span class="nav-number">3.</span> <span class="nav-text">无重写虚函数、单继承</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#有重写虚函数、单继承"><span class="nav-number">4.</span> <span class="nav-text">有重写虚函数、单继承</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#无重写虚函数、多继承"><span class="nav-number">5.</span> <span class="nav-text">无重写虚函数、多继承</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#有重写虚函数、多继承"><span class="nav-number">6.</span> <span class="nav-text">有重写虚函数、多继承</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#总结"><span class="nav-number">7.</span> <span class="nav-text">总结</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#参考"><span class="nav-number">8.</span> <span class="nav-text">参考</span></a></li></ol></div>
+            
+          </div>
+          <div class="post-toc-indicator-bottom post-toc-indicator"></div>
+        </section>
+      
+
+    </div>
+  </aside>
+
+
+      
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner"> <div class="copyright" >
+  
+  &copy; 
+  <span itemprop="copyrightYear">2016</span>
+  <span class="with-love">
+    <i class="icon-next-heart fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">ManyFace</span>
+</div>
+
+<div class="powered-by">
+  Powered by <a class="theme-link" href="http://hexo.io">Hexo</a>
+</div>
+
+<div class="theme-info">
+  Theme -
+  <a class="theme-link" href="https://github.com/iissnan/hexo-theme-next">
+    NexT.Mist
+  </a>
+</div>
+
+
+ </div>
+    </footer>
+
+    <div class="back-to-top"></div>
+  </div>
+
+  <script type="text/javascript" src="/vendors/jquery/index.js?v=2.1.3"></script>
+
+  
+  
+  
+    
+    
+
+  
+
+
+  
+  
+  <script type="text/javascript" src="/vendors/fancybox/source/jquery.fancybox.pack.js"></script>
+  <script type="text/javascript" src="/js/fancy-box.js?v=0.4.5.2"></script>
+
+
+  <script type="text/javascript" src="/js/helpers.js?v=0.4.5.2"></script>
+  
+
+  <script type="text/javascript" src="/vendors/velocity/velocity.min.js"></script>
+  <script type="text/javascript" src="/vendors/velocity/velocity.ui.min.js"></script>
+
+  <script type="text/javascript" src="/js/motion_global.js?v=0.4.5.2" id="motion.global"></script>
+
+
+
+
+  <script type="text/javascript" src="/js/nav-toggle.js?v=0.4.5.2"></script>
+  <script type="text/javascript" src="/vendors/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+
+  
+  
+<script type="text/javascript" src="/js/bootstrap.scrollspy.js?v=0.4.5.2" id="bootstrap.scrollspy.custom"></script>
+
+
+<script type="text/javascript" id="sidebar.toc.highlight">
+  $(document).ready(function () {
+    var tocSelector = '.post-toc';
+    var $tocSelector = $(tocSelector);
+    var activeCurrentSelector = '.active-current';
+
+    $tocSelector
+      .on('activate.bs.scrollspy', function () {
+        var $currentActiveElement = $(tocSelector + ' .active').last();
+
+        removeCurrentActiveClass();
+        $currentActiveElement.addClass('active-current');
+
+        $tocSelector[0].scrollTop = $currentActiveElement.position().top;
+      })
+      .on('clear.bs.scrollspy', function () {
+        removeCurrentActiveClass();
+      });
+
+    function removeCurrentActiveClass () {
+      $(tocSelector + ' ' + activeCurrentSelector)
+        .removeClass(activeCurrentSelector.substring(1));
+    }
+
+    function processTOC () {
+      getTOCMaxHeight();
+      toggleTOCOverflowIndicators();
+    }
+
+    function getTOCMaxHeight () {
+      var height = $('.sidebar').height() -
+                   $tocSelector.position().top -
+                   $('.post-toc-indicator-bottom').height();
+
+      $tocSelector.css('height', height);
+
+      return height;
+    }
+
+    function toggleTOCOverflowIndicators () {
+      tocOverflowIndicator(
+        '.post-toc-indicator-top',
+        $tocSelector.scrollTop() > 0 ? 'show' : 'hide'
+      );
+
+      tocOverflowIndicator(
+        '.post-toc-indicator-bottom',
+        $tocSelector.scrollTop() >= $tocSelector.find('ol').height() - $tocSelector.height() ? 'hide' : 'show'
+      )
+    }
+
+    $(document).on('sidebar.motion.complete', function () {
+      processTOC();
+    });
+
+    $('body').scrollspy({ target: tocSelector });
+    $(window).on('resize', function () {
+      if ( $('.sidebar').hasClass('sidebar-active') ) {
+        processTOC();
+      }
+    });
+
+    onScroll($tocSelector);
+
+    function onScroll (element) {
+      element.on('mousewheel DOMMouseScroll', function (event) {
+          var oe = event.originalEvent;
+          var delta = oe.wheelDelta || -oe.detail;
+
+          this.scrollTop += ( delta < 0 ? 1 : -1 ) * 30;
+          event.preventDefault();
+
+          toggleTOCOverflowIndicators();
+      });
+    }
+
+    function tocOverflowIndicator (indicator, action) {
+      var $indicator = $(indicator);
+      var opacity = action === 'show' ? 0.4 : 0;
+      $indicator.velocity ?
+        $indicator.velocity('stop').velocity({
+          opacity: opacity
+        }, { duration: 100 }) :
+        $indicator.stop().animate({
+          opacity: opacity
+        }, 100);
+    }
+
+  });
+</script>
+
+<script type="text/javascript" id="sidebar.nav">
+  $(document).ready(function () {
+    var html = $('html');
+    var TAB_ANIMATE_DURATION = 200;
+    var hasVelocity = $.isFunction(html.velocity);
+
+    $('.sidebar-nav li').on('click', function () {
+      var item = $(this);
+      var activeTabClassName = 'sidebar-nav-active';
+      var activePanelClassName = 'sidebar-panel-active';
+      if (item.hasClass(activeTabClassName)) {
+        return;
+      }
+
+      var currentTarget = $('.' + activePanelClassName);
+      var target = $('.' + item.data('target'));
+
+      hasVelocity ?
+        currentTarget.velocity('transition.slideUpOut', TAB_ANIMATE_DURATION, function () {
+          target
+            .velocity('stop')
+            .velocity('transition.slideDownIn', TAB_ANIMATE_DURATION)
+            .addClass(activePanelClassName);
+        }) :
+        currentTarget.animate({ opacity: 0 }, TAB_ANIMATE_DURATION, function () {
+          currentTarget.hide();
+          target
+            .stop()
+            .css({'opacity': 0, 'display': 'block'})
+            .animate({ opacity: 1 }, TAB_ANIMATE_DURATION, function () {
+              currentTarget.removeClass(activePanelClassName);
+              target.addClass(activePanelClassName);
+            });
+        });
+
+      item.siblings().removeClass(activeTabClassName);
+      item.addClass(activeTabClassName);
+    });
+
+    $('.post-toc a').on('click', function (e) {
+      e.preventDefault();
+      var targetSelector = escapeSelector(this.getAttribute('href'));
+      var offset = $(targetSelector).offset().top;
+      hasVelocity ?
+        html.velocity('stop').velocity('scroll', {
+          offset: offset  + 'px',
+          mobileHA: false
+        }) :
+        $('html, body').stop().animate({
+          scrollTop: offset
+        }, 500);
+    });
+
+    // Expand sidebar on post detail page by default, when post has a toc.
+    var $tocContent = $('.post-toc-content');
+    if (isDesktop() && CONFIG.sidebar === 'post') {
+      if ($tocContent.length > 0 && $tocContent.html().trim().length > 0) {
+        displaySidebar();
+      }
+    }
+  });
+</script>
+
+
+
+  <script type="text/javascript">
+    $(document).ready(function () {
+      if (CONFIG.sidebar === 'always') {
+        displaySidebar();
+      }
+      if (isMobile()) {
+        FastClick.attach(document.body);
+      }
+
+      motionIntegrator.bootstrap();
+    });
+  </script>
+
+  
+  
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/lazyload.js"></script>
+  <script type="text/javascript">
+    $(function () {
+      $("#posts").find('img').lazyload({
+        placeholder: "/images/loading.gif",
+        effect: "fadeIn"
+      });
+    });
+  </script>
+</body>
+</html>
